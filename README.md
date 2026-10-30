@@ -27,6 +27,9 @@ DIY-AI-TOOLS/bin/ai-tools render DIY-KRONOS-EDITOR.tutorials/tutorial
   `ai-tools-voices`; later runs reuse it.
 - A story whose text and voice are unchanged is skipped (its hash) -- a run
   with nothing to do doesn't even load the TTS model.
+- Rhythm: `--variation` (Piper's noise_w), default 0.33 -- steadier than
+  cori's own 0.8, less random drag, about 10% faster; `--variation 0.8` for
+  cori's own livelier rhythm.
 - Pauses: `--sentence-pause 600` (ms after every sentence, default 500);
   in a story's text `[pause]` (0.7 s), `[pause 2s]`, `[pause 500ms]`.
 - Pronunciation: `lexicon.json` next to the script (or `--lexicon FILE`),
@@ -52,7 +55,7 @@ tutorial.json (in the app's repo)
 
 per language:
 tutorial.json ──tts──▶ stories/<lang>/<id>.mp3 + <id>.vtt + manifest.json
-                       (Piper, en_GB-cori-high at 85%; unchanged stories skipped)
+                       (Piper, en_GB-cori-high at 88%; unchanged stories skipped)
       │ render: at each gap the frame is held as long as the narration,
       ▼         an orange box with the subtitles on top, the voice mixed in
 <tutorials>/<name>/out/<name>.<lang>.mp4   ready for YouTube
@@ -66,9 +69,9 @@ is TTS + render, no new recording.
 
 | Command | | Does |
 |---|---|---|
-| `ai-tools tts <script.json> <dir> [--lang en] [--voice <name>] [--tempo 0.85] [--sentence-pause ms] [--lexicon file]` | **built** | one MP3 + VTT (a cue per sentence) per story, `stories/<lang>/manifest.json`; skips stories whose hash is unchanged |
+| `ai-tools tts <script.json> <dir> [--lang en] [--voice <name>] [--tempo 0.88] [--variation 0.33] [--sentence-pause ms] [--lexicon file]` | **built** | one MP3 + VTT (a cue per sentence) per story, `stories/<lang>/manifest.json`; skips stories whose hash is unchanged |
 | `ai-tools voices [--download <name>]` | **built** | list downloaded voices, fetch one |
-| `ai-tools render <dir> [--lang en] [--height 1080]` | **built** | holds the frame at each story's gap for its narration, draws box + subtitles, mixes the voice → `out/<name>.<lang>.mp4` (+ `.srt`) |
+| `ai-tools render <dir> [--lang en] [--height 1080] [--fade 1000]` | **built** | holds the frame at each story's gap for its narration, draws box + subtitles, mixes the voice → `out/<name>.<lang>.mp4` (+ `.srt`) |
 | `ai-tools check <dir> <script.json>` | planned | does the recording still match the script (story ids, order)? |
 
 ## Code

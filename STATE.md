@@ -96,6 +96,19 @@ D17 2026-10-30  New defaults after listening tests (owner): voice
                 Pronunciation lexicon (lexicon.json next to the script) for
                 the app's words; the Kronos one: Kronos "KRON-oss", Combis
                 "KOM-beeze", DIYKKE "D I Y, Korg Kronos Editor".
+D18 2026-10-30  Box fade in/out, default 1 s (`render --fade MS`, owner). The
+                text fades with the box (in with the first sentence, out with
+                the last); the voice starts once the box is fully in and ends
+                before it fades out -- lead/tail = max(0.4/0.7 s, fade).
+                Checked: half-faded box and text at 1.0 s, voice from 1.55 s.
+D19 2026-10-30  Tempo 0.88 by default (owner: 0.85 "a bit slow", 0.9 earlier a
+                bit fast for cori).
+D20 2026-10-30  Steadier rhythm by default: `--variation 0.33` (Piper's noise_w;
+                cori's own 0.8). Measured on one sentence at tempo 0.88: 5 runs
+                5.24-5.47 s (mean 5.32) vs 5.62-6.25 s (mean 5.89) -- less
+                random spread and ~10% faster; the 0.85 -> 0.88 tempo step
+                alone was only ~2%, hidden by cori's own variation (owner
+                chose the steadier version after a comparison render).
 ```
 
 ## Next

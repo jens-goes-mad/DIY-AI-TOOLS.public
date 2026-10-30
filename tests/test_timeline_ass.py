@@ -57,6 +57,9 @@ def test_ass_box_sized_for_the_longest_sentence_and_text_on_top():
     assert "Dialogue: 0,0:00:00.50,0:00:25.63,Box" in doc
     assert "Dialogue: 1,0:00:00.50,0:00:09.72,Text" in doc and doc.rstrip().endswith("x x")
     assert "&H33008CFF" in doc  # orange at 80% opacity
+    assert "\\p1\\fad(1000,1000)" in doc                  # the box: default 1 s each way
+    assert "\\fad(1000,0)}Short." in doc                     # first sentence fades in with the box
+    assert "\\fad(0,1000)}x x" in doc                        # last one fades out with it
     assert layout.box_w == round(1470 * 0.9) and layout.box_x == round(1470 * 0.05)
 
 
@@ -66,3 +69,9 @@ def test_vtt_round_trip_and_srt():
     assert vtt.srt([(900, 2374, "A."), (61000, 62500, "B.")]) == (
         "1\n00:00:00,900 --> 00:00:02,374\nA.\n\n2\n00:01:01,000 --> 00:01:02,500\nB.\n"
     )
+
+
+def test_fade_length_is_a_parameter_and_one_sentence_fades_both_ways():
+    layout = ass.Layout(1470, 1080)
+    doc = ass.build(layout, [ass.StoryOverlay(0, 5000, [(0, 5000, "Only.")])], lambda s: 10.0 * len(s), fade_ms=300)
+    assert "\\p1\\fad(300,300)" in doc and "\\fad(300,300)}Only." in doc

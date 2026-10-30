@@ -11,7 +11,8 @@ from .stories import Speech, ScriptError, normalize, parts, read_lexicon, read_s
 
 DEFAULT_VOICES = {"en": "en_GB-cori-high"}  # STATE.md D17
 DEFAULT_SENTENCE_PAUSE_MS = 500  # owner, 2026-10-30
-DEFAULT_TEMPO = 0.85  # slower than the voice speaks by itself: tutorial reading (STATE.md D17)
+DEFAULT_VARIATION = 0.33  # steadier than cori's own 0.8: less random drag (STATE.md D20)
+DEFAULT_TEMPO = 0.88  # slower than the voice speaks by itself: tutorial reading (STATE.md D17, D19)
 
 
 def voices_dir() -> Path:
@@ -43,7 +44,11 @@ def cmd_tts(args) -> int:
     if not 0.5 <= args.tempo <= 2.0:
         print("--tempo wants 0.5 .. 2.0", file=sys.stderr)
         return 2
-    voice = {**piper_engine.describe(voice_name), "tempo": args.tempo, "sentencePauseMs": args.sentence_pause}
+    if not 0 <= args.variation <= 1.5:
+        print("--variation wants 0 .. 1.5", file=sys.stderr)
+        return 2
+    voice = {**piper_engine.describe(voice_name), "tempo": args.tempo, "variation": args.variation,
+             "sentencePauseMs": args.sentence_pause}
     engine = None  # loaded only when a story actually needs new audio
     entries, made, kept = {}, [], []
     for story in stories:
@@ -56,7 +61,7 @@ def cmd_tts(args) -> int:
             kept.append(story.id)
             continue
         if engine is None:
-            engine = piper_engine.PiperEngine(voice_name, voices_dir(), args.tempo)
+            engine = piper_engine.PiperEngine(voice_name, voices_dir(), args.tempo, args.variation)
         # Per sentence: speech synthesized, [pause] markers as silence.
         sentences = split_sentences(story.text)
         pcm, spans = audio.assemble(
@@ -96,7 +101,10 @@ def cmd_tts(args) -> int:
 def cmd_render(args) -> int:
     from .render import render
 
-    render(Path(args.dir), args.lang, args.height)
+    if not 0 <= args.fade <= 5000:
+        print("--fade wants 0 .. 5000 ms", file=sys.stderr)
+        return 2
+    render(Path(args.dir), args.lang, args.height, args.fade)
     return 0
 
 
@@ -123,6 +131,9 @@ def main(argv=None) -> int:
                      help=f"silence between sentences (default: {DEFAULT_SENTENCE_PAUSE_MS})")
     tts.add_argument("--lexicon", type=Path, metavar="FILE",
                      help='pronunciations, {"word": "how to say it"} (default: lexicon.json next to the script, if any)')
+    tts.add_argument("--variation", type=float, default=DEFAULT_VARIATION, metavar="W",
+                     help=f"how much sound lengths vary at random, 0-1.5; lower = steadier (default: {DEFAULT_VARIATION}; "
+                          "cori's own is 0.8)")
     tts.add_argument("--tempo", type=float, default=DEFAULT_TEMPO,
                      help=f"speaking rate relative to the voice's own, 0.5-2.0 (default: {DEFAULT_TEMPO})")
     tts.set_defaults(run=cmd_tts)
@@ -131,6 +142,8 @@ def main(argv=None) -> int:
     render.add_argument("dir", help="the tutorial directory (recording.mov, recording.csv, stories/<lang>/)")
     render.add_argument("--lang", default="en", help="which narration (default: en)")
     render.add_argument("--height", type=int, default=1080, help="output height in pixels (default: 1080)")
+    render.add_argument("--fade", type=int, default=1000, metavar="MS",
+                        help="box and text fade in/out; the voice waits for it (default: 1000)")
     render.set_defaults(run=cmd_render)
 
     voices = sub.add_parser("voices", help="list downloaded voices; --download NAME fetches one")

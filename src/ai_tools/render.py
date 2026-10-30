@@ -38,7 +38,7 @@ def _seek(frame: int) -> str:
     return f"{max(0.0, (frame - 0.5) / FPS):.4f}"
 
 
-def render(directory: Path, lang: str, height: int) -> Path:
+def render(directory: Path, lang: str, height: int, fade_ms: int = ass.DEFAULT_FADE_MS) -> Path:
     directory = Path(directory)
     stories_dir = directory / "stories" / lang
     data = manifest.load(stories_dir / "manifest.json")
@@ -63,7 +63,11 @@ def render(directory: Path, lang: str, height: int) -> Path:
         width, height, total = _probe_video(cfr)
 
         narration = {i: s["ms"] for i, s in data["stories"].items()}
-        pieces, placed, out_frames = timeline.plan(gaps, narration, total, FPS)
+        # The voice starts once the box has faded in and ends before it fades
+        # out: lead and tail at least as long as the fade.
+        pieces, placed, out_frames = timeline.plan(gaps, narration, total, FPS,
+                                                   lead_ms=max(timeline.LEAD_MS, fade_ms),
+                                                   tail_ms=max(timeline.TAIL_MS, fade_ms))
 
         # The overlay and the SRT, in output time.
         overlays, srt_cues = [], []
@@ -79,7 +83,7 @@ def render(directory: Path, lang: str, height: int) -> Path:
             overlays.append(ass.StoryOverlay(p.start_ms, p.end_ms, shown))
         layout = ass.Layout(width, height)
         overlay = tmp / "overlay.ass"
-        overlay.write_text(ass.build(layout, overlays, ass.pillow_measure(layout.font_size)), encoding="utf-8")
+        overlay.write_text(ass.build(layout, overlays, ass.pillow_measure(layout.font_size), fade_ms), encoding="utf-8")
         (out_dir / f"{directory.name}.{lang}.srt").write_text(vtt.srt(srt_cues), encoding="utf-8")
 
         # One input per piece (each seeked to its first frame), then the voices.

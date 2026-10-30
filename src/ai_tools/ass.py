@@ -17,7 +17,7 @@ FONT_FILE = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
 BOX_ASS_COLOUR = "&H33008CFF"   # &HAABBGGRR: alpha 0x33 = 80% opaque, BGR 00 8C FF = orange
 TEXT_ASS_COLOUR = "&H00000000"  # black, opaque
-FADE_MS = 150
+DEFAULT_FADE_MS = 1000  # box and text fade in/out (owner, 2026-10-30)
 
 
 @dataclass(frozen=True)
@@ -91,7 +91,11 @@ class StoryOverlay:
     cues: list[tuple[float, float, str]]     # sentences in output time
 
 
-def build(layout: Layout, stories: list[StoryOverlay], measure: Callable[[str], float]) -> str:
+def build(layout: Layout, stories: list[StoryOverlay], measure: Callable[[str], float],
+          fade_ms: int = DEFAULT_FADE_MS) -> str:
+    """The box fades in and out over `fade_ms`; the text with it -- in with
+    the first sentence, out with the last -- so it never sits on a
+    half-transparent box."""
     inner = layout.box_w - 2 * layout.pad_x
     events = []
     for story in stories:
@@ -101,13 +105,16 @@ def build(layout: Layout, stories: list[StoryOverlay], measure: Callable[[str], 
         box_y = round((layout.height - box_h) / 2)
         events.append(
             f"Dialogue: 0,{_time(story.start_ms)},{_time(story.end_ms)},Box,,0,0,0,,"
-            f"{{\\an7\\pos({layout.box_x},{box_y})\\p1\\fad({FADE_MS},{FADE_MS})}}"
+            f"{{\\an7\\pos({layout.box_x},{box_y})\\p1\\fad({fade_ms},{fade_ms})}}"
             f"m 0 0 l {layout.box_w} 0 {layout.box_w} {box_h} 0 {box_h}{{\\p0}}"
         )
-        for a, b, w in wrapped:
+        for n, (a, b, w) in enumerate(wrapped):
+            fade_in = fade_ms if n == 0 else 0
+            fade_out = fade_ms if n == len(wrapped) - 1 else 0
             events.append(
                 f"Dialogue: 1,{_time(a)},{_time(b)},Text,,0,0,0,,"
-                f"{{\\an5\\pos({layout.width // 2},{layout.height // 2})}}" + "\\N".join(_escape(x) for x in w)
+                f"{{\\an5\\pos({layout.width // 2},{layout.height // 2})\\fad({fade_in},{fade_out})}}"
+                + "\\N".join(_escape(x) for x in w)
             )
     header = f"""[Script Info]
 ScriptType: v4.00+

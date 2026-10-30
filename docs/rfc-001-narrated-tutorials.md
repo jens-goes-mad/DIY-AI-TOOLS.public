@@ -42,7 +42,7 @@ every language and voice**.
     Kronos editor the scripts are in its repo's `docs/howto/`
     (committed), each tutorial's directory is
     `DIY-KRONOS-EDITOR.tutorials/<name>/`.
-11. **Voice**: Piper by default, voice `en_GB-cori-high` at tempo 0.85 (STATE.md D17; first choice was
+11. **Voice**: Piper by default, voice `en_GB-cori-high` at tempo 0.88 (STATE.md D17, D19; first choice was
     `en_US-ljspeech-high`); Kokoro to try.
 
 ## Pipeline
@@ -114,7 +114,9 @@ output:     … ──────────── │ frame at s + 500 ms, he
 
 - **Box**: ffmpeg `drawbox`, `x = 5% w`, width `90% w`, centred vertically,
   colour `0xFF8C00@0.8` (the in-app box's orange at 80% opacity), shown for
-  the whole freeze, fading in and out over a few frames. Its height fits the
+  the whole freeze, fading in and out (`--fade`, default 1 s); the text
+  fades with it, and the voice waits until the box is fully there (lead and
+  tail at least as long as the fade). Its height fits the
   story's longest subtitle cue, so it doesn't jump while the subtitles
   change inside it.
 - **Subtitles on top**: ASS through libass, black text (as in the app box),
@@ -174,7 +176,7 @@ Small and generic -- they serve all three apps:
 
 ## Settled (owner, 2026-10-30)
 
-- Piper default; voice `en_GB-cori-high` at tempo 0.85 since D17 (was `en_US-ljspeech-high`); Kokoro to try.
+- Piper default; voice `en_GB-cori-high` at tempo 0.88 since D19 (was `en_US-ljspeech-high`); Kokoro to try.
 - Text and audio burned in; YouTube, linked from Hugo.
 - Box by ffmpeg, orange, 90% wide, centred vertically, 80% opacity,
   subtitles on top.
