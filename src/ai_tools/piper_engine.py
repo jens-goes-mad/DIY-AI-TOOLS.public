@@ -14,10 +14,13 @@ def describe(voice: str) -> dict:
 
 
 class PiperEngine:
-    def __init__(self, voice: str, voices_dir: Path, tempo: float = 1.0, variation: float | None = None):
+    def __init__(self, voice: str, voices_dir: Path, tempo: float = 1.0, variation: float | None = None,
+                 expression: float | None = None):
         """`tempo`: speaking rate relative to the voice's own (0.9 = 10% slower).
         `variation`: Piper's noise_w -- how much sound lengths vary at random
-        (the voice's own value if None; en_GB-cori-high 0.8, lower = steadier)."""
+        (the voice's own value if None; en_GB-cori-high 0.8, lower = steadier).
+        `expression`: Piper's noise_scale -- how much intonation varies (the
+        voice's own if None; cori 0.667, lower = calmer, less theatrical)."""
         from piper import PiperVoice  # imported here: the pure modules and tests don't need piper
         from piper.config import SynthesisConfig
 
@@ -27,7 +30,7 @@ class PiperEngine:
         # length_scale stretches phoneme durations: the voice's own value
         # (1 for en_GB-cori-high) divided by the tempo.
         self._config = SynthesisConfig(length_scale=self._voice.config.length_scale / tempo,
-                                       noise_w_scale=variation)
+                                       noise_w_scale=variation, noise_scale=expression)
 
     def synthesize(self, sentence: str) -> bytes:
         """One sentence as 16-bit mono PCM at self.sample_rate."""

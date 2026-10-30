@@ -109,6 +109,32 @@ D20 2026-10-30  Steadier rhythm by default: `--variation 0.33` (Piper's noise_w;
                 random spread and ~10% faster; the 0.85 -> 0.88 tempo step
                 alone was only ~2%, hidden by cori's own variation (owner
                 chose the steadier version after a comparison render).
+D21 2026-10-30  Calmer intonation by default: `--expression 0.4` (Piper's
+                noise_scale; cori's own 0.667) -- the owner found the voice
+                too theatrical. Changes intonation only, not lengths (a test
+                sentence: 5.97 s at 0.667, 0.4 and 0.25; the audio differs).
+                Lexicon values may be empty: the word is dropped from the
+                speech.
+D22 2026-10-30  Pages, chapters, rounded corners (owner):
+                - A story's text may be a list of pages. Each page box is
+                  still while its sentences are spoken (sentence by
+                  sentence); between pages (`--page-pause` 1.5 s of silence)
+                  the next box flies in from the right, ease-out, invisible
+                  -> 80%; the old one flies out to the left, ease-in. Staggered
+                  (each moves in 60% of the 800 ms change) so they never
+                  overlap. The last page only fades out.
+                - `chapter` steps: like a story (1 s gap, pages), drawn as a
+                  title card -- box with 10% margin on every side, title text
+                  1.8x, bold.
+                - `"render": {"rounded": true}` in the script (the app only
+                  checks it's an object; `render --rounded/--no-rounded`
+                  overrides) -- corners as Bézier curves in the ASS drawing.
+                - Moves are one ASS event per video frame (libass only moves
+                  linearly). Manifest version 2 (kind, pages with their
+                  speech spans); tts starts over on a version-1 manifest,
+                  render refuses one.
+                Checked on a recording with a chapter (2 pages) and a
+                3-page story: frames at the change show no overlap.
 ```
 
 ## Next

@@ -31,24 +31,43 @@ A new language or voice is TTS + render -- no new recording.
 
 ## The script
 
-The app's demo script (its format is documented with the app's demo mode). This
-project only reads its **`story`** steps:
+The app's demo script (its format is documented with the app's demo mode).
+This project reads its **`story`** and **`chapter`** steps and its
+**`render`** block:
 
 ```json
-{ "story": "Welcome to the tutorial. …", "id": "welcome" }
+{
+  "version": 1,
+  "render": { "rounded": true },
+  "steps": [
+    { "chapter": ["Getting started", "Panes and datasets"], "id": "intro" },
+    { "story": "Welcome to the tutorial. …", "id": "welcome" },
+    { "story": ["First page …", "Second page …"], "id": "panes" }
+  ]
+}
 ```
 
+- A step's text is one page (a string) or several (a list). Each page is
+  spoken sentence by sentence; the box shows the sentence being spoken. With
+  several pages the next page's box flies in from the right while the old
+  one flies out to the left; the last page fades out.
+- `story`: a box 90% wide, centred vertically, as high as its text needs.
+  `chapter`: a title card -- the box leaves 10% of the frame free on every
+  side, larger title text.
 - `id`: unique in the script; names the files and the CSV row, and pairs a
-  story with its translation. Without one a story is `story-<n>` (n counts
-  stories from 1) -- give explicit ids, since inserting a story would
-  renumber the rest.
-- In the recording a story is **one second of waiting**; the text is spoken
-  and shown only in the render.
+  step with its translation. Without one: `story-<n>` / `chapter-<n>`, n
+  counting that kind from 1 -- give explicit ids, since inserting a step
+  would renumber the rest.
+- In the recording a story or chapter is **one second of waiting**; the text
+  is spoken and shown only in the render.
 - **Pauses**: `[pause]` (0.7 s), `[pause 2s]`, `[pause 500ms]` (at most
   10 s) anywhere in the text -- silence in the narration there, neither
   spoken nor shown; a sentence with a pause inside stays one subtitle. Any
   other `[...]` is an error. Between sentences there is always
-  `--sentence-pause` (500 ms) anyway; a marker there adds to it.
+  `--sentence-pause` (500 ms), between pages `--page-pause` (1.5 s).
+- `render` (optional): settings for the render -- `rounded` (box corners,
+  default false). Unknown keys are an error. The app only checks that the
+  block is an object.
 - Every other step (click, type, open, caption, mark, …) is the app's
   business and is in the recording as it is.
 
@@ -73,22 +92,28 @@ where each gap landed.
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "script": "…/docs/howto/tutorial.json",
   "lang": "en",
-  "voice": { "engine": "piper", "engineVersion": "1.8.0", "voice": "en_GB-cori-high" },
+  "voice": { "engine": "piper", "engineVersion": "1.8.0", "voice": "en_GB-cori-high", "…": "…" },
   "stories": {
-    "welcome": { "text": "Welcome to …", "hash": "sha256:9f2c…", "ms": 12840 },
-    "loaded":  { "text": "After loading …", "hash": "sha256:41ab…", "ms": 3120 }
+    "welcome": {
+      "kind": "story",
+      "pages": [ { "text": "Welcome to …", "startMs": 0, "endMs": 9764 },
+                 { "text": "The application …", "startMs": 11264, "endMs": 23501 } ],
+      "hash": "sha256:9f2c…",
+      "ms": 23501
+    }
   }
 }
 ```
 
+- `pages`: each page's text and where its speech starts and ends in
+  `<id>.mp3` -- the render groups the sentences into pages with it.
 - `ms`: length of `<id>.mp3` -- how long the render holds that story's frame
   (plus a short lead and tail).
 - `hash`: over the normalized text **and** engine, engine version, voice and
   its settings. `tts` skips a story whose hash and files are unchanged.
-- `text`: what was spoken -- the render takes the text from here.
 
 ## `stories/<lang>/<id>.mp3` and `<id>.vtt`
 

@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 
 from . import ass, manifest, timeline, vtt
+from .stories import ScriptError, read_script
 
 FPS = 30
 
@@ -38,7 +39,25 @@ def _seek(frame: int) -> str:
     return f"{max(0.0, (frame - 0.5) / FPS):.4f}"
 
 
-def render(directory: Path, lang: str, height: int, fade_ms: int = ass.DEFAULT_FADE_MS) -> Path:
+def _render_settings(data: dict, rounded: bool | None) -> dict:
+    """The script's "render" block (the manifest names the script), the
+    command line's choices over it."""
+    settings = {}
+    script = data.get("script")
+    if script and Path(script).exists():
+        try:
+            settings = read_script(Path(script))[1]
+        except ScriptError as e:
+            raise SystemExit(str(e)) from None
+    else:
+        print(f"script {script} not found -- its \"render\" settings not used", file=sys.stderr)
+    if rounded is not None:
+        settings["rounded"] = rounded
+    return settings
+
+
+def render(directory: Path, lang: str, height: int, fade_ms: int = ass.DEFAULT_FADE_MS,
+           rounded: bool | None = None) -> Path:
     directory = Path(directory)
     stories_dir = directory / "stories" / lang
     data = manifest.load(stories_dir / "manifest.json")
@@ -48,6 +67,7 @@ def render(directory: Path, lang: str, height: int, fade_ms: int = ass.DEFAULT_F
     missing = [i for i in data["stories"] if i not in {g.id for g in gaps}]
     if missing:
         raise SystemExit(f"not in the recording: {', '.join(missing)} -- record the script again")
+    settings = _render_settings(data, rounded)
 
     out_dir = directory / "out"
     out_dir.mkdir(exist_ok=True)
@@ -69,21 +89,21 @@ def render(directory: Path, lang: str, height: int, fade_ms: int = ass.DEFAULT_F
                                                    lead_ms=max(timeline.LEAD_MS, fade_ms),
                                                    tail_ms=max(timeline.TAIL_MS, fade_ms))
 
-        # The overlay and the SRT, in output time.
+        # The overlay and the SRT, in output time: each story's sentences
+        # (its VTT) shifted to where its voice starts, grouped into its pages
+        # (the manifest's page spans).
         overlays, srt_cues = [], []
         for p in placed:
-            cues = [(p.voice_ms + a, p.voice_ms + b, t)
-                    for a, b, t in vtt.parse((stories_dir / f"{p.story_id}.vtt").read_text(encoding="utf-8"))]
-            srt_cues += cues
-            # On screen: each sentence until the next starts; the first from the
-            # box's start, the last until the box goes.
-            shown = [(p.start_ms if n == 0 else a,
-                      cues[n + 1][0] if n + 1 < len(cues) else p.end_ms, t)
-                     for n, (a, b, t) in enumerate(cues)]
-            overlays.append(ass.StoryOverlay(p.start_ms, p.end_ms, shown))
+            entry = data["stories"][p.story_id]
+            cues = vtt.parse((stories_dir / f"{p.story_id}.vtt").read_text(encoding="utf-8"))
+            srt_cues += [(p.voice_ms + a, p.voice_ms + b, t) for a, b, t in cues]
+            pages = [[(p.voice_ms + a, p.voice_ms + b, t) for a, b, t in cues
+                      if page["startMs"] - 1 <= a <= page["endMs"]] for page in entry["pages"]]
+            overlays.append(ass.StoryOverlay(p.start_ms, p.end_ms, [pg for pg in pages if pg], entry["kind"]))
         layout = ass.Layout(width, height)
         overlay = tmp / "overlay.ass"
-        overlay.write_text(ass.build(layout, overlays, ass.pillow_measure(layout.font_size), fade_ms), encoding="utf-8")
+        overlay.write_text(ass.build(layout, overlays, ass.pillow_measure, fade_ms,
+                                     rounded=settings.get("rounded", False), fps=FPS), encoding="utf-8")
         (out_dir / f"{directory.name}.{lang}.srt").write_text(vtt.srt(srt_cues), encoding="utf-8")
 
         # One input per piece (each seeked to its first frame), then the voices.

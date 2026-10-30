@@ -2,12 +2,13 @@ import json
 
 import pytest
 
-from ai_tools.stories import Pause, ScriptError, Speech, Story, normalize, parts, read_lexicon, read_stories, shown, split_sentences, spoken
+from ai_tools.stories import (Pause, ScriptError, Speech, Story, normalize, parts, read_lexicon, read_script,
+                              read_stories, shown, split_sentences, spoken)
 
 
-def script(tmp_path, steps, version=1):
+def script(tmp_path, steps, version=1, **extra):
     path = tmp_path / "tutorial.json"
-    path.write_text(json.dumps({"version": version, "steps": steps}), encoding="utf-8")
+    path.write_text(json.dumps({"version": version, "steps": steps, **extra}), encoding="utf-8")
     return path
 
 
@@ -17,7 +18,31 @@ def test_only_stories_in_script_order_with_the_apps_id_rule(tmp_path):
         {"story": "b", "id": "intro"}, {"story": "c"},
     ])
     # story-<n> counts stories (not steps, not captions) from 1 -- like the app
-    assert read_stories(path) == [Story("story-1", "a"), Story("intro", "b"), Story("story-3", "c")]
+    assert read_stories(path) == [Story("story-1", ("a",)), Story("intro", ("b",)), Story("story-3", ("c",))]
+
+
+def test_pages_and_chapters_with_their_own_ids(tmp_path):
+    path = script(tmp_path, [
+        {"chapter": "Part 1"}, {"story": ["Page one.", "Page two."], "id": "pages"},
+        {"story": "b"}, {"chapter": ["Part 2", "Its idea"]},
+    ])
+    assert read_stories(path) == [
+        Story("chapter-1", ("Part 1",), "chapter"), Story("pages", ("Page one.", "Page two.")),
+        Story("story-2", ("b",)), Story("chapter-2", ("Part 2", "Its idea"), "chapter"),
+    ]
+    with pytest.raises(ScriptError, match=r"step 1 \(story\) page 2: only pauses"):
+        read_stories(script(tmp_path, [{"story": ["ok", "[pause]"]}]))
+    with pytest.raises(ScriptError, match="list of them"):
+        read_stories(script(tmp_path, [{"chapter": []}]))
+
+
+def test_render_block(tmp_path):
+    assert read_script(script(tmp_path, [{"story": "a"}], render={"rounded": True}))[1] == {"rounded": True}
+    assert read_script(script(tmp_path, [{"story": "a"}]))[1] == {}
+    with pytest.raises(ScriptError, match='unknown key "rounde"'):
+        read_script(script(tmp_path, [{"story": "a"}], render={"rounde": True}))
+    with pytest.raises(ScriptError, match='"rounded" wants bool'):
+        read_script(script(tmp_path, [{"story": "a"}], render={"rounded": "yes"}))
 
 
 def test_bad_scripts(tmp_path):
@@ -85,6 +110,14 @@ def test_read_lexicon(tmp_path):
     path = tmp_path / "lexicon.json"
     path.write_text(json.dumps({"Kronos": "Crow-noss"}), encoding="utf-8")
     assert read_lexicon(path) == {"Kronos": "Crow-noss"}
-    path.write_text(json.dumps({"Kronos": ""}), encoding="utf-8")
+    path.write_text(json.dumps({"Kronos": 1}), encoding="utf-8")
     with pytest.raises(ScriptError, match="how to say it"):
         read_lexicon(path)
+    path.write_text(json.dumps({"DIY": ""}), encoding="utf-8")
+    assert read_lexicon(path) == {"DIY": ""}
+
+
+def test_lexicon_empty_value_drops_the_word_cleanly():
+    lexicon = {"DIY": "", "DIYKKE": "Korg Kronos Editor"}
+    assert spoken("The DIY editor, DIYKKE, made DIY.", lexicon) == "The editor, Korg Kronos Editor, made."
+    assert spoken("DIY tools", lexicon) == "tools"

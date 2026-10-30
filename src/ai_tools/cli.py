@@ -11,7 +11,9 @@ from .stories import Speech, ScriptError, normalize, parts, read_lexicon, read_s
 
 DEFAULT_VOICES = {"en": "en_GB-cori-high"}  # STATE.md D17
 DEFAULT_SENTENCE_PAUSE_MS = 500  # owner, 2026-10-30
+DEFAULT_PAGE_PAUSE_MS = 1500  # between pages: room for the render's fly-over (STATE.md D22)
 DEFAULT_VARIATION = 0.33  # steadier than cori's own 0.8: less random drag (STATE.md D20)
+DEFAULT_EXPRESSION = 0.4  # calmer than cori's own 0.667: less theatrical (STATE.md D21)
 DEFAULT_TEMPO = 0.88  # slower than the voice speaks by itself: tutorial reading (STATE.md D17, D19)
 
 
@@ -39,43 +41,55 @@ def cmd_tts(args) -> int:
     out = Path(args.dir) / "stories" / args.lang
     out.mkdir(parents=True, exist_ok=True)
     manifest_path = out / "manifest.json"
-    old = manifest.load(manifest_path)
+    old = manifest.load(manifest_path, rewriting=True)
 
     if not 0.5 <= args.tempo <= 2.0:
         print("--tempo wants 0.5 .. 2.0", file=sys.stderr)
         return 2
-    if not 0 <= args.variation <= 1.5:
-        print("--variation wants 0 .. 1.5", file=sys.stderr)
+    if not 0 <= args.variation <= 1.5 or not 0 <= args.expression <= 1.5:
+        print("--variation and --expression want 0 .. 1.5", file=sys.stderr)
         return 2
     voice = {**piper_engine.describe(voice_name), "tempo": args.tempo, "variation": args.variation,
-             "sentencePauseMs": args.sentence_pause}
+             "expression": args.expression,
+             "sentencePauseMs": args.sentence_pause, "pagePauseMs": args.page_pause}
     engine = None  # loaded only when a story actually needs new audio
     entries, made, kept = {}, [], []
     for story in stories:
         # Over what is spoken: a lexicon change re-voices only the stories it touches.
-        digest = manifest.story_hash(spoken(story.text, lexicon), voice)
-        mp3, cues = out / f"{story.id}.mp3", out / f"{story.id}.vtt"
+        digest = manifest.story_hash(story.kind, [spoken(p, lexicon) for p in story.pages], voice)
+        mp3, vtt_path = out / f"{story.id}.mp3", out / f"{story.id}.vtt"
         previous = old["stories"].get(story.id)
-        if previous and previous.get("hash") == digest and mp3.exists() and cues.exists():
+        if previous and previous.get("hash") == digest and mp3.exists() and vtt_path.exists():
             entries[story.id] = previous
             kept.append(story.id)
             continue
         if engine is None:
-            engine = piper_engine.PiperEngine(voice_name, voices_dir(), args.tempo, args.variation)
-        # Per sentence: speech synthesized, [pause] markers as silence.
-        sentences = split_sentences(story.text)
-        pcm, spans = audio.assemble(
-            [[engine.synthesize(spoken(p.text, lexicon)) if isinstance(p, Speech) else p.ms for p in parts(s)] for s in sentences],
-            engine.sample_rate, args.sentence_pause)
+            engine = piper_engine.PiperEngine(voice_name, voices_dir(), args.tempo, args.variation, args.expression)
+        # Page by page, sentence by sentence: speech synthesized, [pause]
+        # markers as silence, --page-pause between pages.
+        pcm, subtitles, pages = b"", [], []
+        for n, page in enumerate(story.pages):
+            if n:
+                pcm += audio.silence(args.page_pause, engine.sample_rate)
+            offset = audio.to_ms(len(pcm), engine.sample_rate)
+            sentences = split_sentences(page)
+            page_pcm, spans = audio.assemble(
+                [[engine.synthesize(spoken(p.text, lexicon)) if isinstance(p, Speech) else p.ms for p in parts(s)]
+                 for s in sentences],
+                engine.sample_rate, args.sentence_pause)
+            pcm += page_pcm
+            cues = [(offset + a, offset + b, shown(s)) for (a, b), s in
+                    ((span, s) for span, s in zip(spans, sentences) if span is not None)]
+            subtitles += cues
+            pages.append({"text": normalize(page), "startMs": round(cues[0][0]), "endMs": round(cues[-1][1])})
         with tempfile.TemporaryDirectory() as tmp:
             wav = Path(tmp) / "story.wav"
             audio.write_wav(wav, pcm, engine.sample_rate)
             partial = out / f"{story.id}.partial.mp3"
             audio.wav_to_mp3(wav, partial)
             os.replace(partial, mp3)
-        subtitles = [(*span, shown(s)) for span, s in zip(spans, sentences) if span is not None]
-        cues.write_text(vtt.build(story.id, subtitles), encoding="utf-8")
-        entries[story.id] = {"text": normalize(story.text), "hash": digest,
+        vtt_path.write_text(vtt.build(story.id, subtitles), encoding="utf-8")
+        entries[story.id] = {"kind": story.kind, "pages": pages, "hash": digest,
                              "ms": round(audio.to_ms(len(pcm), engine.sample_rate))}
         made.append(story.id)
 
@@ -104,7 +118,7 @@ def cmd_render(args) -> int:
     if not 0 <= args.fade <= 5000:
         print("--fade wants 0 .. 5000 ms", file=sys.stderr)
         return 2
-    render(Path(args.dir), args.lang, args.height, args.fade)
+    render(Path(args.dir), args.lang, args.height, args.fade, args.rounded)
     return 0
 
 
@@ -134,6 +148,11 @@ def main(argv=None) -> int:
     tts.add_argument("--variation", type=float, default=DEFAULT_VARIATION, metavar="W",
                      help=f"how much sound lengths vary at random, 0-1.5; lower = steadier (default: {DEFAULT_VARIATION}; "
                           "cori's own is 0.8)")
+    tts.add_argument("--page-pause", type=int, default=DEFAULT_PAGE_PAUSE_MS, metavar="MS",
+                     help=f"silence between a story's pages, room for the fly-over (default: {DEFAULT_PAGE_PAUSE_MS})")
+    tts.add_argument("--expression", type=float, default=DEFAULT_EXPRESSION, metavar="S",
+                     help=f"how much intonation varies, 0-1.5; lower = calmer (default: {DEFAULT_EXPRESSION}; "
+                          "cori's own is 0.667)")
     tts.add_argument("--tempo", type=float, default=DEFAULT_TEMPO,
                      help=f"speaking rate relative to the voice's own, 0.5-2.0 (default: {DEFAULT_TEMPO})")
     tts.set_defaults(run=cmd_tts)
@@ -144,6 +163,8 @@ def main(argv=None) -> int:
     render.add_argument("--height", type=int, default=1080, help="output height in pixels (default: 1080)")
     render.add_argument("--fade", type=int, default=1000, metavar="MS",
                         help="box and text fade in/out; the voice waits for it (default: 1000)")
+    render.add_argument("--rounded", action=argparse.BooleanOptionalAction, default=None,
+                        help="rounded box corners (default: the script's \"render\": {\"rounded\": …}, else off)")
     render.set_defaults(run=cmd_render)
 
     voices = sub.add_parser("voices", help="list downloaded voices; --download NAME fetches one")

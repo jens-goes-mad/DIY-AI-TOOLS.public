@@ -7,29 +7,36 @@ from ai_tools import audio, manifest, vtt
 VOICE = {"engine": "piper", "engineVersion": "1.8.0", "voice": "en_US-ljspeech-high", "sentencePauseMs": 350}
 
 
-def test_hash_ignores_whitespace_but_not_words_or_voice():
-    h = manifest.story_hash("Welcome  to the\ttutorial.", VOICE)
+def test_hash_ignores_whitespace_but_not_words_pages_kind_or_voice():
+    h = manifest.story_hash("story", ["Welcome  to the\ttutorial."], VOICE)
     assert h.startswith("sha256:")
-    assert h == manifest.story_hash(" Welcome to the tutorial. ", VOICE)
-    assert h != manifest.story_hash("Welcome to the tutorial!", VOICE)
-    assert h != manifest.story_hash("Welcome to the tutorial.", {**VOICE, "voice": "en_US-amy-medium"})
-    assert h != manifest.story_hash("Welcome to the tutorial.", {**VOICE, "sentencePauseMs": 300})
+    assert h == manifest.story_hash("story", [" Welcome to the tutorial. "], VOICE)
+    assert h != manifest.story_hash("story", ["Welcome to the tutorial!"], VOICE)
+    assert h != manifest.story_hash("chapter", ["Welcome to the tutorial."], VOICE)
+    assert h != manifest.story_hash("story", ["Welcome to", "the tutorial."], VOICE)  # pages matter
+    assert h != manifest.story_hash("story", ["Welcome to the tutorial."], {**VOICE, "voice": "en_US-amy-medium"})
+    assert h != manifest.story_hash("story", ["Welcome to the tutorial."], {**VOICE, "sentencePauseMs": 300})
 
 
 def test_manifest_round_trip_and_first_run(tmp_path):
     path = tmp_path / "manifest.json"
-    assert manifest.load(path) == {"version": 1, "stories": {}}
-    data = {"version": 1, "lang": "en", "voice": VOICE, "stories": {"welcome": {"text": "Hi.", "hash": "sha256:x", "ms": 812}}}
+    assert manifest.load(path) == {"version": 2, "stories": {}}
+    data = {"version": 2, "lang": "en", "voice": VOICE, "stories": {"welcome": {
+        "kind": "story", "pages": [{"text": "Hi.", "startMs": 0, "endMs": 812}], "hash": "sha256:x", "ms": 812}}}
     manifest.save(path, data)
     assert manifest.load(path) == data
     assert not (tmp_path / "manifest.json.partial").exists()
 
 
-def test_manifest_of_unknown_version_is_refused(tmp_path):
+def test_manifest_versions(tmp_path):
     path = tmp_path / "manifest.json"
-    path.write_text(json.dumps({"version": 2, "stories": {}}))
-    with pytest.raises(ValueError, match="version 2"):
+    path.write_text(json.dumps({"version": 3, "stories": {}}))
+    with pytest.raises(ValueError, match="version 3"):
         manifest.load(path)
+    path.write_text(json.dumps({"version": 1, "stories": {"x": {}}}))
+    with pytest.raises(ValueError, match="run `ai-tools tts` again"):
+        manifest.load(path)                                   # render refuses an old one
+    assert manifest.load(path, rewriting=True) == {"version": 2, "stories": {}}  # tts starts over
 
 
 def test_vtt_cue_per_sentence():

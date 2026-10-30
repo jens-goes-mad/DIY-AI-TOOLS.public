@@ -1,9 +1,10 @@
-"""The stories of a tutorial script (docs/interface.md): ids, texts, sentences.
+"""The stories of a tutorial script (docs/interface.md): ids, pages, sentences.
 
-The script is the app's demo script; only its `story` steps matter here. Ids
-follow the app's rule exactly: an explicit `id`, else `story-<n>` with n
-counting stories from 1 -- so a row in the recording's CSV and a file here
-always name the same story.
+The script is the app's demo script; only its `story` and `chapter` steps
+matter here (and its `render` block). A step's text is one page or a list
+of pages. Ids follow the app's rule exactly: an explicit `id`, else
+`story-<n>` / `chapter-<n>` with n counting that kind from 1 -- so a row in
+the recording's CSV and a file here always name the same step.
 """
 
 import json
@@ -19,10 +20,18 @@ class ScriptError(ValueError):
     pass
 
 
+KINDS = ("story", "chapter")
+
+# The script's "render" block: known keys and their types (a typo is an error).
+RENDER_KEYS = {"rounded": bool}
+
+
 @dataclass(frozen=True)
 class Story:
+    """A story or chapter: its id, kind and pages (one text per page)."""
     id: str
-    text: str
+    pages: tuple[str, ...]
+    kind: str = "story"
 
 
 # --- Pause markers -----------------------------------------------------------
@@ -90,16 +99,17 @@ def parts(sentence: str) -> list[Pause | Speech]:
 # A JSON object word -> how to say it: a respelling the TTS reads right
 # ("Combis": "Kombies") or raw phonemes ("Kronos": "[[kɹˈəʊnɒs]]", Piper's
 # espeak IPA). Whole words, case-sensitive, longest first; applied to what
-# is spoken only -- the subtitles keep the real spelling.
+# is spoken only -- the subtitles keep the real spelling. An empty value
+# drops the word from the speech ("DIY": "").
 
 def read_lexicon(path: Path) -> dict[str, str]:
     try:
         lexicon = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         raise ScriptError(f"{path}: {e}") from e
-    if not isinstance(lexicon, dict) or not all(isinstance(k, str) and k.strip() and isinstance(v, str) and v.strip()
+    if not isinstance(lexicon, dict) or not all(isinstance(k, str) and k.strip() and isinstance(v, str)
                                                 for k, v in lexicon.items()):
-        raise ScriptError(f'{path}: wants a JSON object of "word": "how to say it"')
+        raise ScriptError(f'{path}: wants a JSON object of "word": "how to say it" ("" drops the word)')
     return lexicon
 
 
@@ -109,7 +119,9 @@ def spoken(text: str, lexicon: dict[str, str]) -> str:
         return text
     words = sorted(lexicon, key=len, reverse=True)
     pattern = re.compile(r"(?<![\w-])(" + "|".join(re.escape(w) for w in words) + r")(?![\w-])")
-    return pattern.sub(lambda m: lexicon[m.group(1)], text)
+    # A dropped word leaves no double space and none before punctuation.
+    replaced = pattern.sub(lambda m: lexicon[m.group(1)], text)
+    return re.sub(r"[ \t]+([.,;:!?])", r"\1", re.sub(r"[ \t]{2,}", " ", replaced)).strip(" \t")
 
 
 def shown(sentence: str) -> str:
@@ -117,8 +129,9 @@ def shown(sentence: str) -> str:
     return " ".join(item.text for item in parts(sentence) if isinstance(item, Speech))
 
 
-def read_stories(path: Path) -> list[Story]:
-    """The stories of the script at `path`, in script order."""
+def read_script(path: Path) -> tuple[list[Story], dict]:
+    """The stories and chapters of the script at `path`, in script order, and
+    its "render" settings."""
     try:
         script = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
@@ -129,30 +142,50 @@ def read_stories(path: Path) -> list[Story]:
     if not isinstance(steps, list):
         raise ScriptError(f'{path}: no "steps" list')
 
+    render = script.get("render", {})
+    if not isinstance(render, dict):
+        raise ScriptError(f'{path}: "render" must be an object')
+    for key, value in render.items():
+        if key not in RENDER_KEYS:
+            raise ScriptError(f'{path}: "render": unknown key "{key}" (known: {", ".join(RENDER_KEYS)})')
+        if not isinstance(value, RENDER_KEYS[key]):
+            raise ScriptError(f'{path}: "render": "{key}" wants {RENDER_KEYS[key].__name__}')
+
     stories: list[Story] = []
     seen: set[str] = set()
+    counts = {kind: 0 for kind in KINDS}
     for index, step in enumerate(steps, start=1):
-        if not isinstance(step, dict) or "story" not in step:
+        kind = next((k for k in KINDS if isinstance(step, dict) and k in step), None)
+        if kind is None:
             continue
-        where = f"{path}: step {index} (story)"
-        text = step["story"]
-        if not isinstance(text, str) or not text.strip():
-            raise ScriptError(f"{where}: wants non-empty text")
-        story_id = step.get("id", f"story-{len(stories) + 1}")
+        counts[kind] += 1
+        where = f"{path}: step {index} ({kind})"
+        value = step[kind]
+        pages = (value,) if isinstance(value, str) else tuple(value) if isinstance(value, list) else ()
+        if not pages or not all(isinstance(p, str) and p.strip() for p in pages):
+            raise ScriptError(f"{where}: wants non-empty text, or a list of them (pages)")
+        story_id = step.get("id", f"{kind}-{counts[kind]}")
         if not isinstance(story_id, str) or not ID_PATTERN.match(story_id):
             raise ScriptError(f"{where}: id wants letters, digits, - or _")
-        try:
-            for match in _MARKER.finditer(text):
-                _pause_ms(match.group(1))
-        except ScriptError as e:
-            raise ScriptError(f"{where}: {e}") from None
-        if not shown(text):
-            raise ScriptError(f"{where}: only pauses, nothing to say")
+        for n, page in enumerate(pages, start=1):
+            page_where = where if len(pages) == 1 else f"{where} page {n}"
+            try:
+                for match in _MARKER.finditer(page):
+                    _pause_ms(match.group(1))
+            except ScriptError as e:
+                raise ScriptError(f"{page_where}: {e}") from None
+            if not shown(page):
+                raise ScriptError(f"{page_where}: only pauses, nothing to say")
         if story_id in seen:
             raise ScriptError(f'{where}: id "{story_id}" is used twice')
         seen.add(story_id)
-        stories.append(Story(story_id, text))
-    return stories
+        stories.append(Story(story_id, pages, kind))
+    return stories, render
+
+
+def read_stories(path: Path) -> list[Story]:
+    """The stories and chapters of the script at `path`, in script order."""
+    return read_script(path)[0]
 
 
 def normalize(text: str) -> str:

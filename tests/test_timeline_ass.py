@@ -44,23 +44,65 @@ def test_wrap_greedy_by_measured_width():
     assert ass.wrap("averyveryverylongword x", 50, measure) == ["averyveryverylongword", "x"]
 
 
-def test_ass_box_sized_for_the_longest_sentence_and_text_on_top():
+MEASURE = lambda size: (lambda s: len(s) * size / 2)  # a fake font: half the size a character
+
+
+def test_story_box_sized_for_the_longest_sentence_text_on_top_fades():
     layout = ass.Layout(1470, 1080)
-    measure = lambda s: len(s) * 20.0
-    story = ass.StoryOverlay(500, 25633, [(500, 9724, "Short."), (9724, 25633, "x " * 60)])
-    doc = ass.build(layout, [story], measure)
+    story = ass.StoryOverlay(500, 25633, [[(1500, 9724, "Short."), (9724, 24000, "x " * 60)]])
+    doc = ass.build(layout, [story], MEASURE)
     inner = layout.box_w - 2 * layout.pad_x
-    lines = len(ass.wrap("x " * 60, inner, measure))
+    lines = len(ass.wrap("x " * 60, inner, MEASURE(layout.font_size)))
     box_h = round(lines * layout.line_height + 2 * layout.pad_y)
     assert f"\\pos({layout.box_x},{round((1080 - box_h) / 2)})" in doc
-    assert f"m 0 0 l {layout.box_w} 0 {layout.box_w} {box_h} 0 {box_h}" in doc
-    assert "Dialogue: 0,0:00:00.50,0:00:25.63,Box" in doc
-    assert "Dialogue: 1,0:00:00.50,0:00:09.72,Text" in doc and doc.rstrip().endswith("x x")
-    assert "&H33008CFF" in doc  # orange at 80% opacity
-    assert "\\p1\\fad(1000,1000)" in doc                  # the box: default 1 s each way
-    assert "\\fad(1000,0)}Short." in doc                     # first sentence fades in with the box
-    assert "\\fad(0,1000)}x x" in doc                        # last one fades out with it
-    assert layout.box_w == round(1470 * 0.9) and layout.box_x == round(1470 * 0.05)
+    assert ass.box_path(layout.box_w, box_h, 0) in doc                       # square by default
+    assert "Dialogue: 0,0:00:00.50,0:00:25.63,Box" in doc and "\\fad(1000,1000)" in doc
+    assert "Dialogue: 1,0:00:00.50,0:00:09.72,Text" in doc                  # first sentence from the box's start
+    assert "\\fad(1000,0)}Short." in doc and "\\fad(0,1000)}x x" in doc     # text fades with the box
+    assert "&H33008CFF" in doc                                              # orange at 80%
+
+
+def test_rounded_corners():
+    assert ass.box_path(100, 50, 0) == "m 0 0 l 100 0 100 50 0 50"
+    path = ass.box_path(100, 50, 10)
+    assert path.startswith("m 10 0 l 90 0 b ") and path.count(" b ") == 4
+    doc = ass.build(ass.Layout(1470, 1080), [ass.StoryOverlay(0, 5000, [[(0, 5000, "Hi.")]])], MEASURE, rounded=True)
+    assert " b " in doc
+
+
+def test_chapter_box_leaves_10_percent_and_uses_title_text():
+    layout = ass.Layout(1470, 1080)
+    doc = ass.build(layout, [ass.StoryOverlay(0, 5000, [[(1000, 4000, "Part 1")]], kind="chapter")], MEASURE)
+    x, y, w, h = layout.chapter_box()
+    assert (x, y, w, h) == (147, 108, 1176, 864)
+    assert f"\\pos({x},{y})" in doc and ass.box_path(w, h, 0) in doc
+    assert f"Title,,0,0,0,,{{\\an5\\pos({x + w // 2},{y + h // 2})" in doc
+    assert f"Style: Title,DejaVu Sans,{layout.title_size}," in doc and layout.title_size > layout.font_size
+
+
+def test_pages_fly_in_from_the_right_and_out_to_the_left():
+    layout = ass.Layout(1470, 1080)
+    # page 1 spoken 1000-4000, page 2 from 5500: the 1.5 s pause holds an 800 ms change at 4350-5150
+    story = ass.StoryOverlay(0, 8000, [[(1000, 4000, "One.")], [(5500, 7000, "Two.")]])
+    doc = ass.build(layout, [story], MEASURE, fps=30)
+    boxes = [line for line in doc.splitlines() if ",Box," in line]
+    assert boxes[0].startswith("Dialogue: 0,0:00:00.00,0:00:04.35,Box") and "\\fad(1000,0)" in boxes[0]
+    assert boxes[1].startswith("Dialogue: 0,0:00:05.15,0:00:08.00,Box") and "\\fad(0,1000)" in boxes[1]
+    frames = boxes[2:]
+    assert len(frames) == 2 * 24                                  # 800 ms at 30 fps, two boxes a frame
+    xs_out = [int(f.split("\\pos(")[1].split(",")[0]) for f in frames[0::2]]
+    xs_in = [int(f.split("\\pos(")[1].split(",")[0]) for f in frames[1::2]]
+    alphas_in = [int(f.split("\\1a&H")[1][:2], 16) for f in frames[1::2]]
+    steps_out = [a - b for a, b in zip(xs_out, xs_out[1:])]
+    steps_in = [a - b for a, b in zip(xs_in, xs_in[1:])]
+    assert xs_out[0] > layout.box_x - 5 and xs_out[-1] < -layout.box_w + 100   # leaves to the left
+    moving_out, moving_in = [d for d in steps_out if d > 0], [d for d in steps_in if d > 0]
+    assert moving_out[-1] > moving_out[0] > 0                                   # speeding up
+    assert xs_in[0] > layout.width - 100 and abs(xs_in[-1] - layout.box_x) < 5  # arrives from the right
+    assert moving_in[0] > moving_in[-1]                                         # slowing down
+    assert len(moving_out) < len(steps_out) and len(moving_in) < len(steps_in) # staggered
+    assert alphas_in[0] > 0xF0 and alphas_in[-1] <= 0x36                        # invisible -> 80%
+    assert all(i >= o + layout.box_w for o, i in zip(xs_out, xs_in))           # never overlapping
 
 
 def test_vtt_round_trip_and_srt():
@@ -73,5 +115,5 @@ def test_vtt_round_trip_and_srt():
 
 def test_fade_length_is_a_parameter_and_one_sentence_fades_both_ways():
     layout = ass.Layout(1470, 1080)
-    doc = ass.build(layout, [ass.StoryOverlay(0, 5000, [(0, 5000, "Only.")])], lambda s: 10.0 * len(s), fade_ms=300)
-    assert "\\p1\\fad(300,300)" in doc and "\\fad(300,300)}Only." in doc
+    doc = ass.build(layout, [ass.StoryOverlay(0, 5000, [[(0, 5000, "Only.")]])], MEASURE, fade_ms=300)
+    assert "\\fad(300,300)" in doc and "\\fad(300,300)}Only." in doc
