@@ -1,0 +1,32 @@
+#!/bin/sh
+# Runs `ai-tools <command> ...` in the ai-tools container (README.md).
+#
+# Paths work as on the host: the tree under $AI_TOOLS_MOUNT (default /Users
+# on macOS, /home elsewhere) is mounted at the same path, and the command
+# runs in the current directory -- a script in one repo and its tutorial
+# directory elsewhere both resolve. Voices live in the Docker volume
+# ai-tools-voices, downloaded once.
+#
+#   AI_TOOLS_REBUILD=1 bin/ai-tools ...   rebuild the image first (after
+#                                         changing the code or Dockerfile)
+set -eu
+
+here="$(cd "$(dirname "$0")/.." && pwd)"
+image="${AI_TOOLS_IMAGE:-ai-tools:latest}"
+if [ -d /Users ]; then default_mount=/Users; else default_mount=/home; fi
+mount="${AI_TOOLS_MOUNT:-$default_mount}"
+
+if [ "${AI_TOOLS_REBUILD:-0}" = 1 ] || ! docker image inspect "$image" >/dev/null 2>&1; then
+    docker build -q -t "$image" "$here" >/dev/null
+fi
+
+case "$PWD" in
+    "$mount"/*|"$mount") ;;
+    *) echo "ai-tools: run it from inside $mount (or set AI_TOOLS_MOUNT)" >&2; exit 2 ;;
+esac
+
+exec docker run --rm -i \
+    -v "$mount:$mount" \
+    -v ai-tools-voices:/voices \
+    -w "$PWD" \
+    "$image" "$@"

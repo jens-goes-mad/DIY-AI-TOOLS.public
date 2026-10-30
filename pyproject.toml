@@ -1,0 +1,23 @@
+[project]
+name = "ai-tools"
+version = "0.1.0"
+description = "CLI tools for AI, audio and video work: text-to-speech, subtitles, ffmpeg rendering"
+requires-python = ">=3.11"
+license = { text = "GPL-3.0-or-later" }
+# piper-tts is installed by the Dockerfile (pinned there), not here: the pure
+# modules and their tests run without it.
+dependencies = []
+
+[project.scripts]
+ai-tools = "ai_tools.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
