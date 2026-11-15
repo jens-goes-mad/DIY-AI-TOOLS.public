@@ -99,9 +99,9 @@ def test_bad_markers_are_errors(tmp_path):
 
 
 def test_lexicon_replaces_whole_words_longest_first():
-    lexicon = {"Kronos": "[[kɹˈəʊnɒs]]", "Combi": "Kombie", "Combis": "Kombies", "Korg Kronos": "Korg [[kɹˈəʊnɒs]]"}
+    lexicon = {"Kronos": "[Kronos](/kɹˈɑnɑs/)", "Combi": "Kombie", "Combis": "Kombies", "Korg Kronos": "Korg [Kronos](/kɹˈɑnɑs/)"}
     assert spoken("Korg Kronos keeps Combis and one Combi; Kronoses stay.", lexicon) == \
-        "Korg [[kɹˈəʊnɒs]] keeps Kombies and one Kombie; Kronoses stay."
+        "Korg [Kronos](/kɹˈɑnɑs/) keeps Kombies and one Kombie; Kronoses stay."
     assert spoken("combis stays (case-sensitive), Combi-Set too", lexicon) == "combis stays (case-sensitive), Combi-Set too"
     assert spoken("no lexicon", {}) == "no lexicon"
 

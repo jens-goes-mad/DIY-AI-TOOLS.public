@@ -42,8 +42,7 @@ every language and voice**.
     Kronos editor the scripts are in its repo's `docs/howto/`
     (committed), each tutorial's directory is
     `DIY-KRONOS-EDITOR.tutorials/<name>/`.
-11. **Voice**: Piper by default, voice `en_GB-cori-high` at tempo 0.88 (STATE.md D17, D19; first choice was
-    `en_US-ljspeech-high`); Kokoro to try.
+11. **Voice**: Kokoro, voice `af_heart` (STATE.md D23; Piper until then).
 
 ## Pipeline
 
@@ -93,18 +92,11 @@ output:     … ──────────── │ frame at s + 500 ms, he
 - Each story is split into sentences; every sentence is synthesized on its
   own and measured, then the sentences are joined with a short pause into
   `<id>.mp3`. That gives **exact** subtitle times per sentence in `<id>.vtt`.
-- **Piper** by default: fast on the CPU (this Mac is an Intel i9 without an
-  NVIDIA GPU, and Docker on macOS can't pass a GPU through anyway). Voice
-  **`en_US-ljspeech-high`**: female, US English, high quality, trained on
-  LJ Speech (non-fiction books read aloud, so a calm reading style), dataset
-  **public domain** per its MODEL_CARD (checked 2026-10-30). Not chosen:
-  `en_US-hfc_female-medium` (dataset CC BY-NC-SA 4.0, non-commercial -- risky
-  on YouTube), `en_US-amy-medium` (its card names no licence).
-- **Kokoro-82M** to try as a second engine: more natural English (Apache-2.0
-  weights, female voices such as `af_heart`) and **word-level timestamps** --
-  subtitles in chunks of a few words, or the spoken word highlighted. A second
-  image target, since it pulls CPU PyTorch (about +2 GB). The timestamps to
-  be confirmed when trying it.
+- **Kokoro-82M** (STATE.md D23; Piper before that, D7-D21): Apache-2.0 code
+  and weights, clearly more natural than Piper, about twice real time on this
+  Mac's CPU (an Intel i9; Docker on macOS has no GPU). Voice **`af_heart`**
+  (American English, female, its best grade). It reports word-level
+  timestamps -- not used yet; subtitles are still a cue per sentence.
 - Voices are downloaded on first use into a Docker volume, never baked into
   the image.
 - Hash = SHA-256 of the normalized text (whitespace collapsed) plus engine,
@@ -149,7 +141,7 @@ own recording with `--demo-captions de.vtt` (otherwise identical, unattended).
 | | |
 |---|---|
 | Base | `debian:bookworm-slim`, amd64 (arm64 later for Apple Silicon) |
-| Contents | ffmpeg (libx264, aac, libmp3lame, libass), Python 3, Piper |
+| Contents | ffmpeg (libx264, aac, libmp3lame, libass), Python 3, Kokoro (CPU PyTorch) |
 | CLI | `ai-tools`, a Python package; every command usable on its own |
 | Host wrapper | `bin/ai-tools`: `docker run --rm -v /Users:/Users -v ai-tools-voices:/voices ai-tools …` -- the project tree mounted at the **same path**, since a script (app repo) and its tutorial directory (`….tutorials/`) live in different places and the manifest records the script's path |
 | Tests | the pure parts (script reading, hashing, CSV/VTT handling, the freeze timeline, filter-graph building) as plain `pytest` without Docker; render tests on tiny generated clips inside the container |
@@ -168,7 +160,7 @@ Small and generic -- they serve all three apps:
 
 1. **App side** (the apps' demo mode): story = 1 s gap, `recording.csv`. Record
    `tutorial.json` once.
-2. **Container + `tts`** with Piper: per-story MP3 + VTT, manifest, hash skip.
+2. **Container + `tts`** (built with Piper, now Kokoro): per-story MP3 + VTT, manifest, hash skip.
 3. **`render`**: freezes, box, subtitles, narration → MP4 for YouTube; `check`.
 4. **Kokoro** as a second engine; a second language.
 5. Optional: intro/outro cards, logo, background music with ducking, `make`
@@ -176,7 +168,7 @@ Small and generic -- they serve all three apps:
 
 ## Settled (owner, 2026-10-30)
 
-- Piper default; voice `en_GB-cori-high` at tempo 0.88 since D19 (was `en_US-ljspeech-high`); Kokoro to try.
+- Kokoro, voice `af_heart` (D23; Piper and its voices before).
 - Text and audio burned in; YouTube, linked from Hugo.
 - Box by ffmpeg, orange, 90% wide, centred vertically, 80% opacity,
   subtitles on top.
@@ -188,8 +180,8 @@ Small and generic -- they serve all three apps:
 
 ## Open
 
-1. **This repo's licence**: done -- GPL-3.0-or-later, like Piper, which
-   `ai-tools` imports as a library (STATE.md D15).
+1. **This repo's licence**: done -- GPL-3.0-or-later (chosen for Piper, D15;
+   kept with Kokoro -- Apache-2.0 -- and espeak-ng, GPL-3.0).
 2. **Before going public**: done -- the docs no longer use private paths.
 3. **Translated captions**: keep the recording's captions in every language,
    or one recording per language when captions matter?

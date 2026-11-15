@@ -4,7 +4,7 @@ A Docker container with command-line tools for AI, audio and video work:
 text-to-speech, subtitles, and ffmpeg rendering. Scripted from the shell or
 Python, batch-friendly, no GUI. It knows nothing about any particular app.
 
-**Status:** `tts` (Piper) and `render` work; `check` is planned. Read
+**Status:** `tts` (Kokoro) and `render` work; `check` is planned. Read
 `STATE.md` first, then the RFC in `docs/`.
 
 ## Use
@@ -23,19 +23,19 @@ DIY-AI-TOOLS/bin/ai-tools render DIY-KRONOS-EDITOR.tutorials/tutorial
 # 37.6 s, 1470x1080 -> DIY-KRONOS-EDITOR.tutorials/tutorial/out/tutorial.en.mp4
 ```
 
-- The first run downloads the voice (about 110 MB) into the Docker volume
-  `ai-tools-voices`; later runs reuse it.
+- The first run downloads the Kokoro model and voice (about 330 MB) into the
+  Docker volume `ai-tools-voices`; later runs reuse it.
 - A story whose text and voice are unchanged is skipped (its hash) -- a run
   with nothing to do doesn't even load the TTS model.
-- Rhythm: `--variation` (Piper's noise_w), default 0.33 -- steadier than
-  cori's own 0.8, less random drag, about 10% faster; `--variation 0.8` for
-  cori's own livelier rhythm. Intonation: `--expression` (Piper's
-  noise_scale), default 0.4 -- calmer, less theatrical than cori's own 0.667.
+- Voice: `--voice` -- Kokoro's English voices, `a…` American, `b…` British;
+  female ones by its own grades: `af_heart` (A, the default), `af_bella`
+  (A-), `af_nicole` (B-), `bf_emma` (B-). `--tempo` (1.0 = the voice's own).
 - Pauses: `--sentence-pause 600` (ms after every sentence, default 500);
   in a story's text `[pause]` (0.7 s), `[pause 2s]`, `[pause 500ms]`.
 - Pronunciation: `lexicon.json` next to the script (or `--lexicon FILE`),
-  `{"Combis": "Kombies", "Kronos": "[[kɹˈəʊnɒs]]"}` -- a respelling or raw
-  phonemes (Piper's espeak IPA in `[[…]]`), whole words, case-sensitive.
+  `{"Combis": "Kombies", "Kronos": "[Kronos](/kɹˈɑnɑs/)"}` -- a respelling,
+  or Kokoro's inline phonemes `[word](/phonemes/)` (misaki's phoneme set),
+  whole words, case-sensitive.
   Spoken only; the subtitles keep the real spelling. `"DIY": ""` drops a
   word from the speech. A change re-voices only
   the stories containing the word.
@@ -61,7 +61,7 @@ tutorial.json (in the app's repo)
 
 per language:
 tutorial.json ──tts──▶ stories/<lang>/<id>.mp3 + <id>.vtt + manifest.json
-                       (Piper, en_GB-cori-high at 88%; unchanged stories skipped)
+                       (Kokoro, af_heart; unchanged stories skipped)
       │ render: at each gap the frame is held as long as the narration,
       ▼         an orange box with the subtitles on top, the voice mixed in
 <tutorials>/<name>/out/<name>.<lang>.mp4   ready for YouTube
@@ -75,7 +75,7 @@ is TTS + render, no new recording.
 
 | Command | | Does |
 |---|---|---|
-| `ai-tools tts <script.json> <dir> [--lang en] [--voice <name>] [--tempo 0.88] [--variation 0.33] [--expression 0.4] [--page-pause 1500] [--sentence-pause ms] [--lexicon file]` | **built** | one MP3 + VTT (a cue per sentence) per story, `stories/<lang>/manifest.json`; skips stories whose hash is unchanged |
+| `ai-tools tts <script.json> <dir> [--lang en] [--voice <name>] [--tempo 1.0] [--page-pause 1500] [--sentence-pause ms] [--lexicon file]` | **built** | one MP3 + VTT (a cue per sentence) per story, `stories/<lang>/manifest.json`; skips stories whose hash is unchanged |
 | `ai-tools voices [--download <name>]` | **built** | list downloaded voices, fetch one |
 | `ai-tools render <dir> [--lang en] [--height 1080] [--fade 1000] [--rounded]` | **built** | holds the frame at each story's gap for its narration, draws box + subtitles, mixes the voice → `out/<name>.<lang>.mp4` (+ `.srt`) |
 | `ai-tools check <dir> <script.json>` | planned | does the recording still match the script (story ids, order)? |
@@ -88,12 +88,12 @@ is TTS + render, no new recording.
 | `src/ai_tools/manifest.py` | the manifest, the story hash |
 | `src/ai_tools/vtt.py` | per-story WebVTT |
 | `src/ai_tools/audio.py` | joining sentences with pauses, WAV, MP3 (ffmpeg) |
-| `src/ai_tools/piper_engine.py` | Piper -- the only module importing it |
+| `src/ai_tools/kokoro_engine.py` | Kokoro -- the only module importing it |
 | `src/ai_tools/timeline.py` | where clips and held frames go, in whole frames |
 | `src/ai_tools/ass.py` | the box and the subtitles as ASS, lines wrapped with the font's real widths |
 | `src/ai_tools/render.py` | ffmpeg: constant-rate copy, clips + held frames, overlay, narration |
 | `src/ai_tools/cli.py` | the commands |
-| `Dockerfile`, `bin/ai-tools` | the image (Debian, ffmpeg 5.1, Python, Piper 1.8.0 and Pillow pinned, DejaVu fonts) and the host wrapper |
+| `Dockerfile`, `bin/ai-tools` | the image (Debian, ffmpeg 5.1, Python, Kokoro 0.9.4 on CPU-only PyTorch, Pillow pinned, DejaVu fonts, espeak-ng) and the host wrapper |
 
 ## Documents
 
@@ -105,6 +105,6 @@ is TTS + render, no new recording.
 
 ## Licence
 
-GPL-3.0-or-later (`LICENSE`). `ai-tools` imports Piper (piper-tts,
-GPL-3.0-or-later) as a library. Voices have licences of their own -- see
-each voice's MODEL_CARD; the default `en_GB-cori-high` is public domain.
+GPL-3.0-or-later (`LICENSE`). The TTS engine, Kokoro (code and weights) and
+its phonemizer misaki, are Apache-2.0; espeak-ng (its fallback for unknown
+words) is GPL-3.0.

@@ -95,7 +95,7 @@ where each gap landed.
   "version": 2,
   "script": "…/docs/howto/tutorial.json",
   "lang": "en",
-  "voice": { "engine": "piper", "engineVersion": "1.8.0", "voice": "en_GB-cori-high", "…": "…" },
+  "voice": { "engine": "kokoro", "engineVersion": "0.9.4", "voice": "af_heart", "…": "…" },
   "stories": {
     "welcome": {
       "kind": "story",

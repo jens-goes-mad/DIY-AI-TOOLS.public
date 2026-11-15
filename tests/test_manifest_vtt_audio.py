@@ -4,7 +4,7 @@ import pytest
 
 from ai_tools import audio, manifest, vtt
 
-VOICE = {"engine": "piper", "engineVersion": "1.8.0", "voice": "en_US-ljspeech-high", "sentencePauseMs": 350}
+VOICE = {"engine": "kokoro", "engineVersion": "0.9.4", "voice": "af_heart", "sentencePauseMs": 350}
 
 
 def test_hash_ignores_whitespace_but_not_words_pages_kind_or_voice():

@@ -9,20 +9,14 @@ from pathlib import Path
 from . import audio, manifest, vtt
 from .stories import Speech, ScriptError, normalize, parts, read_lexicon, read_stories, shown, split_sentences, spoken
 
-DEFAULT_VOICES = {"en": "en_GB-cori-high"}  # STATE.md D17
+DEFAULT_VOICES = {"en": "af_heart"}  # Kokoro, American English, female, grade A (STATE.md D23)
 DEFAULT_SENTENCE_PAUSE_MS = 500  # owner, 2026-10-30
 DEFAULT_PAGE_PAUSE_MS = 1500  # between pages: room for the render's fly-over (STATE.md D22)
-DEFAULT_VARIATION = 0.33  # steadier than cori's own 0.8: less random drag (STATE.md D20)
-DEFAULT_EXPRESSION = 0.4  # calmer than cori's own 0.667: less theatrical (STATE.md D21)
-DEFAULT_TEMPO = 0.88  # slower than the voice speaks by itself: tutorial reading (STATE.md D17, D19)
-
-
-def voices_dir() -> Path:
-    return Path(os.environ.get("AI_TOOLS_VOICES", Path.home() / ".cache" / "ai-tools" / "voices"))
+DEFAULT_TEMPO = 1.0  # Kokoro's own speed (STATE.md D23)
 
 
 def cmd_tts(args) -> int:
-    from . import piper_engine
+    from . import kokoro_engine
 
     voice_name = args.voice or DEFAULT_VOICES.get(args.lang)
     if not voice_name:
@@ -46,11 +40,7 @@ def cmd_tts(args) -> int:
     if not 0.5 <= args.tempo <= 2.0:
         print("--tempo wants 0.5 .. 2.0", file=sys.stderr)
         return 2
-    if not 0 <= args.variation <= 1.5 or not 0 <= args.expression <= 1.5:
-        print("--variation and --expression want 0 .. 1.5", file=sys.stderr)
-        return 2
-    voice = {**piper_engine.describe(voice_name), "tempo": args.tempo, "variation": args.variation,
-             "expression": args.expression,
+    voice = {**kokoro_engine.describe(voice_name), "tempo": args.tempo,
              "sentencePauseMs": args.sentence_pause, "pagePauseMs": args.page_pause}
     engine = None  # loaded only when a story actually needs new audio
     entries, made, kept = {}, [], []
@@ -64,7 +54,7 @@ def cmd_tts(args) -> int:
             kept.append(story.id)
             continue
         if engine is None:
-            engine = piper_engine.PiperEngine(voice_name, voices_dir(), args.tempo, args.variation, args.expression)
+            engine = kokoro_engine.KokoroEngine(voice_name, args.tempo)
         # Page by page, sentence by sentence: speech synthesized, [pause]
         # markers as silence, --page-pause between pages.
         pcm, subtitles, pages = b"", [], []
@@ -122,16 +112,6 @@ def cmd_render(args) -> int:
     return 0
 
 
-def cmd_voices(args) -> int:
-    from . import piper_engine
-
-    for name in args.download:
-        piper_engine.ensure_voice(name, voices_dir())
-    for model in sorted(voices_dir().glob("*.onnx")):
-        print(model.stem)
-    return 0
-
-
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="ai-tools", description="AI, audio and video tools (see README.md).")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -140,21 +120,15 @@ def main(argv=None) -> int:
     tts.add_argument("script", help="the tutorial script (JSON); only its story steps are read")
     tts.add_argument("dir", help="the tutorial directory; writes stories/<lang>/")
     tts.add_argument("--lang", default="en", help="language of the script's texts (default: en)")
-    tts.add_argument("--voice", help=f"Piper voice (default for en: {DEFAULT_VOICES['en']})")
+    tts.add_argument("--voice", help=f"Kokoro voice, e.g. af_heart, af_bella, bf_emma (default for en: {DEFAULT_VOICES['en']})")
     tts.add_argument("--sentence-pause", type=int, default=DEFAULT_SENTENCE_PAUSE_MS, metavar="MS",
                      help=f"silence between sentences (default: {DEFAULT_SENTENCE_PAUSE_MS})")
     tts.add_argument("--lexicon", type=Path, metavar="FILE",
                      help='pronunciations, {"word": "how to say it"} (default: lexicon.json next to the script, if any)')
-    tts.add_argument("--variation", type=float, default=DEFAULT_VARIATION, metavar="W",
-                     help=f"how much sound lengths vary at random, 0-1.5; lower = steadier (default: {DEFAULT_VARIATION}; "
-                          "cori's own is 0.8)")
     tts.add_argument("--page-pause", type=int, default=DEFAULT_PAGE_PAUSE_MS, metavar="MS",
                      help=f"silence between a story's pages, room for the fly-over (default: {DEFAULT_PAGE_PAUSE_MS})")
-    tts.add_argument("--expression", type=float, default=DEFAULT_EXPRESSION, metavar="S",
-                     help=f"how much intonation varies, 0-1.5; lower = calmer (default: {DEFAULT_EXPRESSION}; "
-                          "cori's own is 0.667)")
     tts.add_argument("--tempo", type=float, default=DEFAULT_TEMPO,
-                     help=f"speaking rate relative to the voice's own, 0.5-2.0 (default: {DEFAULT_TEMPO})")
+                     help=f"speaking rate, 1.0 = the voice's own, 0.5-2.0 (default: {DEFAULT_TEMPO})")
     tts.set_defaults(run=cmd_tts)
 
     render = sub.add_parser("render", help="recording + narration -> out/<name>.<lang>.mp4 (+ .srt), for YouTube")
@@ -167,9 +141,6 @@ def main(argv=None) -> int:
                         help="rounded box corners (default: the script's \"render\": {\"rounded\": …}, else off)")
     render.set_defaults(run=cmd_render)
 
-    voices = sub.add_parser("voices", help="list downloaded voices; --download NAME fetches one")
-    voices.add_argument("--download", action="append", default=[], metavar="NAME")
-    voices.set_defaults(run=cmd_voices)
 
     args = parser.parse_args(argv)
     return args.run(args)

@@ -5,7 +5,7 @@ the project is.
 
 ## Status (2026-10-30)
 
-**Phases 2 (`tts`) and 3 (`render`) built and verified** -- the first
+**Phases 2 (`tts`, Kokoro since D23) and 3 (`render`) built and verified** -- the first
 finished video: `DIY-KRONOS-EDITOR.tutorials/tutorial/out/tutorial.en.mp4`.
 Public repo: https://github.com/jens-goes-mad/DIY-AI-TOOLS.public (D14).
 
@@ -135,6 +135,18 @@ D22 2026-10-30  Pages, chapters, rounded corners (owner):
                   render refuses one.
                 Checked on a recording with a chapter (2 pages) and a
                 3-page story: frames at the change show no overlap.
+D23 2026-11-15  Kokoro-82M replaces Piper (owner: the Piper voice was
+                "considerably bad"). Apache-2.0 code and weights (kokoro and
+                misaki 0.9.4 package metadata). On this Mac's CPU about 2x
+                real time (6.9 s of speech in 3.2 s); first start downloads
+                the model (~330 MB) into the volume. Default voice af_heart
+                (its grade A), tempo 1.0. Piper's options (--variation,
+                --expression), the voices command and its voices are gone;
+                D7, D15-D21 are history. Pronunciation now in Kokoro's syntax
+                `[word](/phonemes/)` -- its defaults still miss "Kronos"
+                (kɹˈOnOz) and "Combis" (kəmbˈɪs), as Piper did. Image 2.15 GB
+                (CPU-only PyTorch, pinned in one pip run -- a plain install
+                pulled the CUDA build, 5.9 GB).
 ```
 
 ## Next

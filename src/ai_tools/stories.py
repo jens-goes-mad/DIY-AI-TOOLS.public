@@ -97,8 +97,8 @@ def parts(sentence: str) -> list[Pause | Speech]:
 # --- Pronunciation lexicon ---------------------------------------------------
 #
 # A JSON object word -> how to say it: a respelling the TTS reads right
-# ("Combis": "Kombies") or raw phonemes ("Kronos": "[[kɹˈəʊnɒs]]", Piper's
-# espeak IPA). Whole words, case-sensitive, longest first; applied to what
+# ("Combis": "Kombies") or Kokoro's inline phonemes ("Kronos":
+# "[Kronos](/kɹˈɑnɑs/)"). Whole words, case-sensitive, longest first; applied to what
 # is spoken only -- the subtitles keep the real spelling. An empty value
 # drops the word from the speech ("DIY": "").
 
