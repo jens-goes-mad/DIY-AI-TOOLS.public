@@ -4,7 +4,7 @@ A Docker container with command-line tools for AI, audio and video work:
 text-to-speech, subtitles, and ffmpeg rendering. Scripted from the shell or
 Python, batch-friendly, no GUI. It knows nothing about any particular app.
 
-**Status:** `tts` (Kokoro) and `render` work; `check` is planned. Read
+**Status:** `tts` (Kokoro), `render` and `shots` work; `check` is planned. Read
 `STATE.md` first, then the RFC in `docs/`.
 
 ## Use
@@ -78,6 +78,7 @@ is TTS + render, no new recording.
 | `ai-tools tts <script.json> <dir> [--lang en] [--voice <name>] [--tempo 1.0] [--page-pause 1500] [--sentence-pause ms] [--lexicon file]` | **built** | one MP3 + VTT (a cue per sentence) per story, `stories/<lang>/manifest.json`; skips stories whose hash is unchanged |
 | `ai-tools voices [--download <name>]` | **built** | list downloaded voices, fetch one |
 | `ai-tools render <dir> [--lang en] [--height 1080] [--fade 1000] [--rounded]` | **built** | holds the frame at each story's gap for its narration, draws box + subtitles, mixes the voice → `out/<name>.<lang>.mp4` (+ `.srt`) |
+| `ai-tools shots <dir> [--lang en]` | **built** | a screenshot of every mark the app drew (`recording.marks.csv`) → `out/<name>-<nnn>.<lang>.jpg`, for online docs |
 | `ai-tools check <dir> <script.json>` | planned | does the recording still match the script (story ids, order)? |
 
 ## Code
@@ -92,6 +93,7 @@ is TTS + render, no new recording.
 | `src/ai_tools/timeline.py` | where clips and held frames go, in whole frames |
 | `src/ai_tools/ass.py` | the box and the subtitles as ASS, lines wrapped with the font's real widths |
 | `src/ai_tools/render.py` | ffmpeg: constant-rate copy, clips + held frames, overlay, narration |
+| `src/ai_tools/shots.py` | ffmpeg: one JPG per mark, from the frame on screen mid-mark |
 | `src/ai_tools/cli.py` | the commands |
 | `Dockerfile`, `bin/ai-tools` | the image (Debian, ffmpeg 5.1, Python, Kokoro 0.9.4 on CPU-only PyTorch, Pillow pinned, DejaVu fonts, espeak-ng) and the host wrapper |
 

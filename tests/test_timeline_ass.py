@@ -37,6 +37,29 @@ def test_read_gaps_checks_order(tmp_path):
     assert timeline.read_gaps(csv) == [Gap("a", 505, 1507), Gap("b", 5276, 6277)]
 
 
+def test_read_times_allows_overlap_but_not_twice_the_same_id(tmp_path):
+    # Marks may be up together (both panes marked at once) -- unlike story gaps.
+    csv = tmp_path / "recording.marks.csv"
+    csv.write_text("id,start_ms,end_ms\nmark-1,1000,2000\nmark-2,1010,2010\n")
+    assert timeline.read_times(csv) == [Gap("mark-1", 1000, 2000), Gap("mark-2", 1010, 2010)]
+    csv.write_text("id,start_ms,end_ms\nx,1000,2000\nx,3000,4000\n")
+    with pytest.raises(ValueError, match="listed twice"):
+        timeline.read_times(csv)
+
+
+def test_shot_name_like_the_video():
+    from ai_tools.shots import shot_name
+    assert shot_name("V001_Main_Overview", 1, "en") == "V001_Main_Overview-001.en.jpg"
+    assert shot_name("V001_Main_Overview", 12, "de") == "V001_Main_Overview-012.de.jpg"
+
+
+def test_shot_ms_middle_after_the_fade_in():
+    from ai_tools.shots import FADE_IN_MS, shot_ms
+    assert shot_ms(Gap("a", 1000, 2000)) == 1500                    # the middle
+    assert shot_ms(Gap("a", 1000, 1200)) == 1200                    # short: its last moment, not mid-fade
+    assert shot_ms(Gap("a", 1000, 1400)) == 1000 + FADE_IN_MS        # after the fade, before the middle would be too early
+
+
 def test_wrap_greedy_by_measured_width():
     measure = lambda s: len(s) * 10.0  # 10 px a character
     assert ass.wrap("one two three four five", 100, measure) == ["one two", "three four", "five"]  # exactly fits

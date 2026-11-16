@@ -48,17 +48,23 @@ class Placed:
     voice_ms: float
 
 
-def read_gaps(path: Path) -> list[Gap]:
-    """recording.csv (docs/interface.md), checked: ids unique, gaps in order
-    and not overlapping."""
+def read_times(path: Path) -> list[Gap]:
+    """An `id,start_ms,end_ms` file written by the app (docs/interface.md) --
+    recording.csv or recording.marks.csv -- checked: ids unique."""
     with open(path, newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
-    gaps = [Gap(r["id"], float(r["start_ms"]), float(r["end_ms"])) for r in rows]
+    times = [Gap(r["id"], float(r["start_ms"]), float(r["end_ms"])) for r in rows]
+    if len({t.id for t in times}) != len(times):
+        raise ValueError(f"{path}: an id is listed twice")
+    return times
+
+
+def read_gaps(path: Path) -> list[Gap]:
+    """recording.csv, checked: ids unique, gaps in order and not overlapping."""
+    gaps = read_times(path)
     for prev, gap in zip(gaps, gaps[1:]):
         if gap.start_ms < prev.end_ms:
             raise ValueError(f"{path}: story {gap.id} starts before {prev.id} ends")
-    if len({g.id for g in gaps}) != len(gaps):
-        raise ValueError(f"{path}: a story id is listed twice")
     return gaps
 
 

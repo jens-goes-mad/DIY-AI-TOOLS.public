@@ -112,6 +112,13 @@ def cmd_render(args) -> int:
     return 0
 
 
+def cmd_shots(args) -> int:
+    from .shots import shots
+
+    shots(Path(args.dir), args.lang)
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="ai-tools", description="AI, audio and video tools (see README.md).")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -140,6 +147,11 @@ def main(argv=None) -> int:
     render.add_argument("--rounded", action=argparse.BooleanOptionalAction, default=None,
                         help="rounded box corners (default: the script's \"render\": {\"rounded\": …}, else off)")
     render.set_defaults(run=cmd_render)
+
+    shots = sub.add_parser("shots", help="a screenshot of every mark -> out/<name>-<nnn>.<lang>.jpg, for documentation")
+    shots.add_argument("dir", help="the tutorial directory (recording.mov, recording.marks.csv)")
+    shots.add_argument("--lang", default="en", help="the language in the file names, as the video's (default: en)")
+    shots.set_defaults(run=cmd_shots)
 
 
     args = parser.parse_args(argv)

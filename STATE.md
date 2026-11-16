@@ -147,6 +147,19 @@ D23 2026-11-15  Kokoro-82M replaces Piper (owner: the Piper voice was
                 (kɹˈOnOz) and "Combis" (kəmbˈɪs), as Piper did. Image 2.15 GB
                 (CPU-only PyTorch, pinned in one pip run -- a plain install
                 pulled the CUDA build, 5.9 GB).
+D24 2026-11-16  `shots`: screenshots for online docs from the same run as
+                the video (owner). The app writes `recording.marks.csv`
+                (every mark: drawn .. taken down, own file since marks may
+                overlap and recording.csv rows are all story gaps); each
+                mark becomes out/<name>-<nnn>.<lang>.jpg next to the video
+                (owner: named like the mp4; nnn = script order from 001),
+                full recording resolution,
+                the frame on screen at max(middle, start + 250 ms) -- after
+                the mark's fade-in. Seek through a constant-rate conversion
+                like render: the recording only has a frame where the window
+                changed, and a plain -ss lands on the next one, often the
+                frame where the mark is already gone (seen on V001: no mark
+                in any shot until fixed).
 ```
 
 ## Next

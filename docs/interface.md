@@ -13,11 +13,13 @@ freely as long as these files stay as described.
   recording.mov                   the recorded window: a 1 s gap per story,  app
                                   no story boxes
   recording.csv                   where each gap is                          app
+  recording.marks.csv             when each mark was on screen               app
   stories/<lang>/
     manifest.json                 ids, texts, hashes, durations              ai-tools
     <id>.mp3                      the narration of one story                 ai-tools
     <id>.vtt                      its subtitle cues, times from 0            ai-tools
   out/<name>.<lang>.mp4           the finished video (+ .srt)                ai-tools
+  out/<name>-<nnn>.<lang>.jpg     a screenshot per mark, for docs            ai-tools
 ```
 
 For example, the Kronos editor keeps its scripts in its repo's
@@ -87,6 +89,24 @@ narration needs.
 Why the CSV is needed at all: everything **between** stories -- a file load,
 a redraw -- takes a different time on every run, so only the recording knows
 where each gap landed.
+
+## `recording.marks.csv` -- written by the app
+
+```
+id,start_ms,end_ms
+two-panes,3492,4542
+mark-2,3494,4544
+```
+
+The same columns, one row per `mark` step in script order: from when the
+app drew the rectangle around an element to when it took it down. Marks may
+overlap (two elements marked at once). `ai-tools shots` takes the frame on
+screen in the middle of each (never during the mark's 200 ms fade-in) and
+writes it next to the video as `out/<name>-<nnn>.<lang>.jpg` (nnn: the
+mark's place in the script, from 001), in the recording's own resolution --
+screenshots for the app's online documentation, made by the same run as the
+video. The picture is the same in every language; `<lang>` (`shots --lang`,
+default `en`) only names it like its video.
 
 ## `stories/<lang>/manifest.json` -- written by `ai-tools tts`
 
